@@ -44,13 +44,28 @@ namespace GnomeGuard
 
         public void ResetToSpawn()
         {
+            if (Controller != null) Controller.enabled = false;
             transform.position = _spawnPos;
             transform.rotation = _spawnRot;
+            if (Controller != null) Controller.enabled = true;
             _yaw = _spawnRot.eulerAngles.y;
             _pitch = 8f;
-            Head.localRotation = Quaternion.Euler(_pitch, 0f, 0f);
+            _verticalVelocity = -2f;
+            if (Head != null)
+            {
+                Head.localPosition = new Vector3(0f, 1.62f, 0f);
+                Head.localRotation = Quaternion.Euler(_pitch, 0f, 0f);
+            }
+
+            if (Camera != null)
+            {
+                Camera.fieldOfView = _baseFov;
+                Camera.transform.localRotation = Quaternion.identity;
+            }
+
             Charge01 = 0f;
             _charging = false;
+            _targetFov = _baseFov;
         }
 
         void Start()
@@ -242,9 +257,9 @@ namespace GnomeGuard
             var hits = Physics.OverlapSphere(center, 1.5f);
             foreach (var hit in hits)
             {
-                var zombie = hit.GetComponentInParent<ZombieGnome>();
-                if (zombie != null)
-                    zombie.Hit(center, transform.forward * 16f + Vector3.up * 2f, 1);
+                var target = hit.GetComponentInParent<IHittable>();
+                if (target != null)
+                    target.TryHit(center, transform.forward * 16f + Vector3.up * 2f, 1);
             }
         }
 

@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace GnomeGuard
 {
-    public class PowerUpGnome : MonoBehaviour
+    public class PowerUpGnome : MonoBehaviour, IPickup
     {
         public GnomeKind Kind;
 
@@ -35,9 +35,9 @@ namespace GnomeGuard
 
             var labelGo = new GameObject("Label");
             labelGo.transform.SetParent(root.transform, false);
-            labelGo.transform.localPosition = new Vector3(0f, 1.85f, 0f);
+            labelGo.transform.localPosition = new Vector3(0f, 2.05f, 0f);
             var tm = labelGo.AddComponent<TextMesh>();
-            tm.text = GnomeAssets.DisplayName(kind);
+            tm.text = "PICK UP\n" + GnomeAssets.DisplayName(kind);
             tm.fontSize = 42;
             tm.characterSize = 0.055f;
             tm.anchor = TextAnchor.LowerCenter;

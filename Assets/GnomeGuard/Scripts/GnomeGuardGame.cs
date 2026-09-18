@@ -4,7 +4,7 @@ using UnityEngine.InputSystem;
 
 namespace GnomeGuard
 {
-    public class GnomeGuardGame : MonoBehaviour
+    public class GnomeGuardGame : MonoBehaviour, IGameModifiers
     {
         public static GnomeGuardGame Instance { get; private set; }
 
@@ -17,6 +17,10 @@ namespace GnomeGuard
         public bool HighlightHits => _highlightUntil > Time.time;
         public CameraShake Shake => _world != null ? _world.Shake : null;
         public Vector3 PlayerPosition => _world?.Player != null ? _world.Player.transform.position : Vector3.zero;
+        public Transform Projectiles => _world != null ? _world.Projectiles : null;
+        public Transform FxRoot => _world != null ? _world.Fx : null;
+        public RuntimePool<Snowball> Snowballs { get; private set; }
+        public RuntimePool<HitBurst> Bursts { get; private set; }
         public float ZombieSpeedMultiplier
         {
             get
@@ -78,6 +82,7 @@ namespace GnomeGuard
             }
 
             _world = WorldBuilder.Build(transform);
+            InitPools();
             gameObject.AddComponent<GameSfx>();
             _hud = GameHud.Create(transform);
             _hud.SetPlayingHud(false);
@@ -109,7 +114,7 @@ namespace GnomeGuard
             if (_gameOver)
             {
                 if (kb != null && kb.rKey.wasPressedThisFrame)
-                    Restart();
+                    RequestRestart();
                 return;
             }
 
@@ -152,19 +157,39 @@ namespace GnomeGuard
         {
             IsPlaying = true;
             _gameOver = false;
+            Paused = false;
             _score = 0;
             _wave = 0;
             _treeHp = MaxTreeHp;
             _combo = 1;
+            _comboUntil = 0f;
             _comboPulse = false;
+            _alive = 0;
+            _spawning = false;
+            _lastCall = false;
+            _waveDamage = false;
             _freezeUntil = _slowUntil = _rapidUntil = _highlightUntil = _shieldUntil = 0f;
             _hud.ShowTitle(false);
             _hud.HideGameOver();
+            _hud.ShowPause(false);
             _hud.SetPlayingHud(true);
+            _hud.SetCoach("");
             if (_world.Player != null) _world.Player.ResetToSpawn();
             SetCursor(true);
             StartCoroutine(EnablePlayerNextFrame());
+            StartCoroutine(CoachNewPlayer());
             StartCoroutine(RunWaves());
+        }
+
+        IEnumerator CoachNewPlayer()
+        {
+            _hud.SetCoach("Green gnomes are enemies. Aim with the mouse and click to throw snowballs.");
+            yield return WaitCache.Seconds(6.5f);
+            if (!IsPlaying || _gameOver) yield break;
+            _hud.SetCoach("Hold click to charge a bigger snowball. Press F to kick gnomes that get close.");
+            yield return WaitCache.Seconds(6.5f);
+            if (!IsPlaying || _gameOver) yield break;
+            _hud.SetCoach("");
         }
 
         IEnumerator EnablePlayerNextFrame()
@@ -176,7 +201,7 @@ namespace GnomeGuard
 
         IEnumerator RunWaves()
         {
-            yield return new WaitForSeconds(0.4f);
+            yield return WaitCache.Seconds(0.4f);
             while (IsPlaying && !_gameOver)
             {
                 _wave++;
@@ -185,7 +210,13 @@ namespace GnomeGuard
                 GameSfx.Wave();
 
                 bool bossWave = _wave % 5 == 0;
-                _hud.Banner(bossWave ? $"WAVE {_wave}  KING GNOME" : $"WAVE {_wave}", 1.7f);
+                if (_wave == 1)
+                    _hud.Banner("WAVE 1  —  STOP THE GREEN GNOMES", 2.2f);
+                else
+                    _hud.Banner(bossWave ? $"WAVE {_wave}  KING GNOME" : $"WAVE {_wave}", 1.7f);
+
+                if (_wave == 1)
+                    yield return WaitCache.Seconds(1.6f);
 
                 int count = 4 + _wave * 2;
                 float spawnGap = Mathf.Max(0.28f, 0.82f - _wave * 0.05f);
@@ -195,7 +226,7 @@ namespace GnomeGuard
                 if (bossWave)
                 {
                     SpawnZombie(speed * 0.62f, 6 + _wave / 5 * 2, EnemyRole.Boss);
-                    yield return new WaitForSeconds(1.1f);
+                    yield return WaitCache.Seconds(1.1f);
                 }
 
                 for (int i = 0; i < count && IsPlaying && !_gameOver; i++)
@@ -218,7 +249,7 @@ namespace GnomeGuard
                     }
 
                     SpawnZombie(gnomeSpeed, hp, role);
-                    yield return new WaitForSeconds(spawnGap);
+                    yield return WaitCache.Seconds(spawnGap);
                 }
 
                 _spawning = false;
@@ -237,9 +268,12 @@ namespace GnomeGuard
                 }
 
                 SpawnPowerUp();
+                _hud.SetCoach("Walk into the glowing gnome — that's a power-up!");
                 if (_waveDamage)
-                    _hud.Banner("NICE  Grab a holiday gnome", 1.8f);
-                yield return new WaitForSeconds(2.4f);
+                    _hud.Banner("GRAB THE GLOWING GNOME", 1.8f);
+                yield return WaitCache.Seconds(2.4f);
+                if (IsPlaying && !_gameOver)
+                    _hud.SetCoach("");
             }
         }
 
@@ -253,7 +287,7 @@ namespace GnomeGuard
                     pos = EdgePoint(_world.ArenaRadius - 1.2f);
             }
 
-            var zombie = ZombieGnome.Spawn(pos, _world.Tree, speed, hp, transform, role);
+            var zombie = EnemyGnome.Spawn(pos, _world.Tree, speed, hp, _world.Enemies, role);
             if (zombie != null) _alive++;
         }
 
@@ -274,7 +308,7 @@ namespace GnomeGuard
                     pos = EdgePoint(_world.ArenaRadius * 0.55f);
             }
 
-            PowerUpGnome.Spawn(kind, pos, transform);
+            PowerUpGnome.Spawn(kind, pos, _world.Pickups);
         }
 
         Vector3 EdgePoint(float radius)
@@ -289,7 +323,7 @@ namespace GnomeGuard
             if (_world != null && _world.Shake != null) _world.Shake.Punch(0.08f);
         }
 
-        public void OnZombieKilled(Vector3 popupAt, EnemyRole role)
+        public void OnEnemyKilled(Vector3 popupAt, EnemyGnome enemy)
         {
             _alive = Mathf.Max(0, _alive - 1);
             if (!IsPlaying) return;
@@ -299,13 +333,13 @@ namespace GnomeGuard
             _comboUntil = Time.time + 1.85f;
 
             int gain = 10 * _combo;
-            if (role == EnemyRole.Rusher) gain += 8;
-            if (role == EnemyRole.Tank) gain += 20;
-            if (role == EnemyRole.Boss) gain += 80;
+            if (enemy != null) gain += enemy.BonusScore;
             if (HighlightHits) gain += 5;
             _score += gain;
 
-            Color color = role == EnemyRole.Boss ? new Color(1f, 0.75f, 0.2f) : new Color(1f, 1f, 0.75f);
+            Color color = enemy != null && enemy.Role == EnemyRole.Boss
+                ? new Color(1f, 0.75f, 0.2f)
+                : new Color(1f, 1f, 0.75f);
             FloatingText.Spawn(popupAt, "+" + gain, color);
 
             if (_combo == 5 || _combo == 10 || _combo == 15)
@@ -342,39 +376,33 @@ namespace GnomeGuard
         public void ApplyPowerUp(GnomeKind kind)
         {
             if (!IsPlaying) return;
-            switch (kind)
-            {
-                case GnomeKind.Wizard:
-                    _freezeUntil = Time.time + 4.5f;
-                    _hud.Banner("FREEZE!", 1.4f);
-                    break;
-                case GnomeKind.Soldier:
-                    _rapidUntil = Time.time + 8f;
-                    _hud.Banner("RAPID FIRE!", 1.4f);
-                    break;
-                case GnomeKind.Santa:
-                    _treeHp = Mathf.Min(MaxTreeHp, _treeHp + 2);
-                    _score += 50;
-                    _hud.Banner("SANTA REPAIRS THE TREE", 1.5f);
-                    if (_world.TreeFx != null) _world.TreeFx.Celebrate();
-                    break;
-                case GnomeKind.Dwarf:
-                    _score += 120;
-                    _hud.Banner("GOLDEN NUGGET +120", 1.4f);
-                    break;
-                case GnomeKind.Beach:
-                    _slowUntil = Time.time + 6.5f;
-                    _hud.Banner("VACATION SLOW-MO", 1.4f);
-                    break;
-                case GnomeKind.Theorist:
-                    _highlightUntil = Time.time + 8f;
-                    _hud.Banner("THEORY: BONUS HITS", 1.4f);
-                    break;
-                case GnomeKind.Basalt:
-                    _shieldUntil = Time.time + 6.5f;
-                    _hud.Banner("BASALT SHIELD", 1.4f);
-                    break;
-            }
+            PowerUpCatalog.For(kind).Apply(this);
+        }
+
+        public void AddFreeze(float seconds) => _freezeUntil = Time.time + seconds;
+        public void AddSlow(float seconds) => _slowUntil = Time.time + seconds;
+        public void AddRapidFire(float seconds) => _rapidUntil = Time.time + seconds;
+        public void AddHighlight(float seconds) => _highlightUntil = Time.time + seconds;
+        public void AddShield(float seconds) => _shieldUntil = Time.time + seconds;
+
+        public void RepairTree(int amount)
+        {
+            _treeHp = Mathf.Min(MaxTreeHp, _treeHp + amount);
+        }
+
+        public void AddScore(int amount)
+        {
+            _score += amount;
+        }
+
+        public void Announce(string banner)
+        {
+            if (_hud != null) _hud.Banner(banner, 1.4f);
+        }
+
+        public void CelebrateTree()
+        {
+            if (_world != null && _world.TreeFx != null) _world.TreeFx.Celebrate();
         }
 
         string StatusText()
@@ -397,6 +425,7 @@ namespace GnomeGuard
             PlayerPrefs.SetInt("GnomeGuard.Best", _best);
             PlayerPrefs.Save();
             _hud.SetPlayingHud(false);
+            _hud.SetCoach("");
             _hud.ShowGameOver(_wave, _score, _best);
             GameSfx.GameOver();
             SetCursor(false);
@@ -408,22 +437,44 @@ namespace GnomeGuard
             Paused = !Paused;
             if (_world.Player != null) _world.Player.CanAct = !Paused;
             SetCursor(!Paused);
-            _hud.Banner(Paused ? "PAUSED  Esc to resume" : "", Paused ? 999f : 0.05f);
+            _hud.ShowPause(Paused);
         }
 
-        void Restart()
+        public void RequestRestart()
         {
             StopAllCoroutines();
-            if (_world != null && _world.SceneCamera != null)
+            Paused = false;
+            IsPlaying = false;
+            _gameOver = false;
+            _alive = 0;
+            _spawning = false;
+            if (_world != null && _world.Player != null)
+                _world.Player.CanAct = false;
+
+            if (_world != null)
             {
-                _world.SceneCamera.enabled = true;
-                var listener = _world.SceneCamera.GetComponent<AudioListener>();
-                if (listener != null) listener.enabled = true;
+                ActorFolder.Clear(_world.Enemies);
+                ActorFolder.Clear(_world.Pickups);
+                ActorFolder.Clear(_world.Fx);
+                ActorFolder.Clear(_world.Projectiles);
             }
 
-            Destroy(gameObject);
-            var go = new GameObject("GnomeGuard");
-            go.AddComponent<GnomeGuardGame>();
+            InitPools();
+            BeginRun();
+        }
+
+        void InitPools()
+        {
+            Snowballs?.Clear();
+            Bursts?.Clear();
+            if (_world == null) return;
+
+            Snowballs = new RuntimePool<Snowball>(_world.Projectiles, Snowball.Create);
+            Bursts = new RuntimePool<HitBurst>(_world.Fx, HitBurst.Create);
+            for (int i = 0; i < 12; i++)
+                Snowballs.Release(Snowballs.Get());
+            for (int i = 0; i < 8; i++)
+                Bursts.Release(Bursts.Get());
         }
 
         void SetCursor(bool locked)

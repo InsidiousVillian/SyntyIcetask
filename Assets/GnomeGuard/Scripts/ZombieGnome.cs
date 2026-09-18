@@ -10,12 +10,18 @@ namespace GnomeGuard
         Boss
     }
 
-    public class ZombieGnome : MonoBehaviour
+    public abstract class EnemyGnome : MonoBehaviour, IHittable
     {
+        public abstract EnemyRole Role { get; }
+        protected virtual float Height => 1.35f;
+        protected virtual GnomeKind VisualKind => GnomeKind.Zombie;
+        protected virtual int TouchDamage => 1;
+        protected virtual float Knockback => 7.5f;
+        protected virtual float BobRate => 7.5f;
+        public virtual int BonusScore => 0;
+
         public float Speed = 1.7f;
         public int Hp = 1;
-        public int Damage = 1;
-        public EnemyRole Role = EnemyRole.Grunt;
 
         Transform _tree;
         Transform _visual;
@@ -23,76 +29,74 @@ namespace GnomeGuard
         float _seed;
         bool _dead;
         float _rise;
-        float _baseHeight = 1.35f;
         CapsuleCollider _col;
         GameObject _ice;
         bool _tumbling;
         float _tumble;
 
-        public static ZombieGnome Spawn(Vector3 position, Transform tree, float speed, int hp, Transform parent, EnemyRole role)
+        public static EnemyGnome Spawn(Vector3 position, Transform tree, float speed, int hp, Transform parent, EnemyRole role)
         {
-            float height = role switch
+            var root = new GameObject(role + "Gnome");
+            root.transform.SetParent(parent, false);
+
+            EnemyGnome enemy = role switch
             {
-                EnemyRole.Rusher => 1.05f,
-                EnemyRole.Tank => 1.7f,
-                EnemyRole.Boss => 2.55f,
-                _ => 1.35f
+                EnemyRole.Rusher => root.AddComponent<RusherGnome>(),
+                EnemyRole.Tank => root.AddComponent<TankGnome>(),
+                EnemyRole.Boss => root.AddComponent<KingGnome>(),
+                _ => root.AddComponent<GruntGnome>()
             };
 
-            var root = new GameObject(role == EnemyRole.Boss ? "KingGnome" : "ZombieGnome");
-            root.transform.SetParent(parent, false);
-            root.transform.position = position + Vector3.down * 1.4f;
+            enemy.Assemble(position, tree, speed, hp);
+            HitFx.Spawn(position + Vector3.up * 0.2f, new Color(0.75f, 0.9f, 1f), 12);
+            if (role == EnemyRole.Boss) GameSfx.Boss();
+            return enemy;
+        }
 
-            var col = root.AddComponent<CapsuleCollider>();
-            col.height = height;
-            col.radius = height * 0.32f;
-            col.center = new Vector3(0f, height * 0.5f, 0f);
+        void Assemble(Vector3 position, Transform tree, float speed, int hp)
+        {
+            transform.position = position + Vector3.down * 1.4f;
+            Speed = speed;
+            Hp = hp;
+            _tree = tree;
+            _seed = Random.Range(0f, 30f);
 
-            var rb = root.AddComponent<Rigidbody>();
+            _col = gameObject.AddComponent<CapsuleCollider>();
+            _col.height = Height;
+            _col.radius = Height * 0.32f;
+            _col.center = new Vector3(0f, Height * 0.5f, 0f);
+
+            var rb = gameObject.AddComponent<Rigidbody>();
             rb.isKinematic = true;
             rb.useGravity = false;
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
 
             var visualHolder = new GameObject("Visual");
-            visualHolder.transform.SetParent(root.transform, false);
-            var visual = GnomeAssets.SpawnGnomeVisual(GnomeKind.Zombie, visualHolder.transform);
+            visualHolder.transform.SetParent(transform, false);
+            var visual = GnomeAssets.SpawnGnomeVisual(VisualKind, visualHolder.transform);
             if (visual != null)
             {
-                GnomeAssets.NormalizeHeight(visual, height);
+                GnomeAssets.NormalizeHeight(visual, Height);
                 var bounds = GnomeAssets.Encapsulate(visual);
-                visual.transform.position += Vector3.up * (root.transform.position.y - bounds.min.y);
+                visual.transform.position += Vector3.up * (transform.position.y - bounds.min.y);
             }
 
-            var ice = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            ice.name = "Ice";
-            Object.Destroy(ice.GetComponent<Collider>());
-            ice.transform.SetParent(root.transform, false);
-            ice.transform.localPosition = new Vector3(0f, height * 0.55f, 0f);
-            ice.transform.localScale = Vector3.one * (height * 0.55f);
-            ice.GetComponent<MeshRenderer>().sharedMaterial = GnomeAssets.IceMaterial();
-            ice.SetActive(false);
+            _visual = visualHolder.transform;
 
-            var zombie = root.AddComponent<ZombieGnome>();
-            zombie._tree = tree;
-            zombie._visual = visualHolder.transform;
-            zombie._col = col;
-            zombie._ice = ice;
-            zombie._baseHeight = height;
-            zombie.Speed = speed;
-            zombie.Hp = hp;
-            zombie.Role = role;
-            zombie.Damage = role == EnemyRole.Boss ? 2 : 1;
-            zombie._seed = Random.Range(0f, 30f);
-
-            HitFx.Spawn(position + Vector3.up * 0.2f, new Color(0.75f, 0.9f, 1f), 12);
-            if (role == EnemyRole.Boss) GameSfx.Boss();
-            return zombie;
+            _ice = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            _ice.name = "Ice";
+            Destroy(_ice.GetComponent<Collider>());
+            _ice.transform.SetParent(transform, false);
+            _ice.transform.localPosition = new Vector3(0f, Height * 0.55f, 0f);
+            _ice.transform.localScale = Vector3.one * (Height * 0.55f);
+            _ice.GetComponent<MeshRenderer>().sharedMaterial = GnomeAssets.IceMaterial();
+            _ice.SetActive(false);
         }
 
         void Update()
         {
-            if (GnomeGuardGame.Instance == null) return;
-            if (GnomeGuardGame.Instance.Paused) return;
+            var game = GnomeGuardGame.Instance;
+            if (game == null || game.Paused) return;
 
             if (_tumbling)
             {
@@ -104,7 +108,7 @@ namespace GnomeGuard
                 return;
             }
 
-            if (_dead || !GnomeGuardGame.Instance.IsPlaying) return;
+            if (_dead || !game.IsPlaying) return;
 
             if (_rise < 1f)
             {
@@ -120,7 +124,7 @@ namespace GnomeGuard
             toTree.y = 0f;
             float dist = toTree.magnitude;
 
-            float speedMul = GnomeGuardGame.Instance.ZombieSpeedMultiplier;
+            float speedMul = game.ZombieSpeedMultiplier;
             bool frozen = speedMul <= 0.001f;
             if (_ice != null) _ice.SetActive(frozen);
 
@@ -139,28 +143,33 @@ namespace GnomeGuard
                 transform.rotation = Quaternion.Euler(0f, yaw, 0f);
             }
 
-            if (_visual != null && !frozen)
-            {
-                float bob = Mathf.Abs(Mathf.Sin((Time.time + _seed) * (Role == EnemyRole.Rusher ? 10f : 7.5f))) * 0.12f;
-                _visual.localPosition = new Vector3(0f, bob, 0f);
-                _visual.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin((Time.time + _seed) * 8f) * 6f);
-            }
-            else if (_visual != null)
-            {
-                _visual.localPosition = Vector3.zero;
-            }
+            Animate(_visual, frozen);
 
             bool danger = dist < 4.2f;
-            if (GnomeGuardGame.Instance.HighlightHits || danger)
+            if (game.HighlightHits || danger)
                 PulseHighlight(danger);
 
             if (dist <= 1.45f)
                 ReachTree();
         }
 
-        public void Hit(Vector3 hitPoint, Vector3 incoming, int damage = 1)
+        protected virtual void Animate(Transform visual, bool frozen)
         {
-            if (_dead || _tumbling) return;
+            if (visual == null) return;
+            if (frozen)
+            {
+                visual.localPosition = Vector3.zero;
+                return;
+            }
+
+            float bob = Mathf.Abs(Mathf.Sin((Time.time + _seed) * BobRate)) * 0.12f;
+            visual.localPosition = new Vector3(0f, bob, 0f);
+            visual.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin((Time.time + _seed) * 8f) * 6f);
+        }
+
+        public bool TryHit(Vector3 hitPoint, Vector3 incoming, int damage)
+        {
+            if (_dead || _tumbling) return false;
 
             Hp -= Mathf.Max(1, damage);
             Vector3 push = incoming;
@@ -168,35 +177,34 @@ namespace GnomeGuard
             if (push.sqrMagnitude < 0.01f && _tree != null)
                 push = transform.position - _tree.position;
             if (push.sqrMagnitude < 0.01f) push = -transform.forward;
-            _knockback = push.normalized * (Role == EnemyRole.Boss ? 4.2f : 7.5f);
+            _knockback = push.normalized * Knockback;
 
             HitFx.Spawn(hitPoint, new Color(0.5f, 1f, 0.45f), 14);
             GameSfx.Hit();
-            if (GnomeGuardGame.Instance != null)
-                GnomeGuardGame.Instance.NotifyHit(hitPoint);
+            GnomeGuardGame.Instance?.NotifyHit(hitPoint);
 
-            if (Hp <= 0) Die();
+            if (Hp <= 0) Die(true);
             else GameSfx.Thump();
+            return true;
         }
 
         void ReachTree()
         {
             if (_dead) return;
-            if (GnomeGuardGame.Instance != null)
-                GnomeGuardGame.Instance.DamageTree(Damage);
+            GnomeGuardGame.Instance?.DamageTree(TouchDamage);
             Die(false);
         }
 
-        void Die(bool scored = true)
+        void Die(bool scored)
         {
             if (_dead) return;
             _dead = true;
             _tumbling = true;
             if (_col != null) _col.enabled = false;
             if (_ice != null) _ice.SetActive(false);
-            HitFx.Spawn(transform.position + Vector3.up * (_baseHeight * 0.5f), new Color(0.6f, 1f, 0.5f), Role == EnemyRole.Boss ? 48 : 28);
-            if (scored && GnomeGuardGame.Instance != null)
-                GnomeGuardGame.Instance.OnZombieKilled(transform.position + Vector3.up, Role);
+            HitFx.Spawn(transform.position + Vector3.up * (Height * 0.5f), new Color(0.6f, 1f, 0.5f), Role == EnemyRole.Boss ? 48 : 28);
+            if (scored)
+                GnomeGuardGame.Instance?.OnEnemyKilled(transform.position + Vector3.up, this);
         }
 
         void PulseHighlight(bool danger)
@@ -205,5 +213,37 @@ namespace GnomeGuard
             float pulse = 0.86f + Mathf.PingPong(Time.time * (danger ? 7f : 3f), danger ? 0.28f : 0.18f);
             _visual.localScale = Vector3.one * pulse;
         }
+    }
+
+    public sealed class GruntGnome : EnemyGnome
+    {
+        public override EnemyRole Role => EnemyRole.Grunt;
+    }
+
+    public sealed class RusherGnome : EnemyGnome
+    {
+        public override EnemyRole Role => EnemyRole.Rusher;
+        protected override float Height => 1.05f;
+        protected override GnomeKind VisualKind => GnomeKind.Beach;
+        protected override float BobRate => 10f;
+        public override int BonusScore => 8;
+    }
+
+    public sealed class TankGnome : EnemyGnome
+    {
+        public override EnemyRole Role => EnemyRole.Tank;
+        protected override float Height => 1.7f;
+        protected override GnomeKind VisualKind => GnomeKind.Soldier;
+        protected override float Knockback => 5.2f;
+        public override int BonusScore => 20;
+    }
+
+    public sealed class KingGnome : EnemyGnome
+    {
+        public override EnemyRole Role => EnemyRole.Boss;
+        protected override float Height => 2.55f;
+        protected override int TouchDamage => 2;
+        protected override float Knockback => 4.2f;
+        public override int BonusScore => 80;
     }
 }

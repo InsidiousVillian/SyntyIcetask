@@ -12,6 +12,10 @@ namespace GnomeGuard
         public Camera GameCamera;
         public Camera SceneCamera;
         public TreeFx TreeFx;
+        public Transform Enemies;
+        public Transform Projectiles;
+        public Transform Pickups;
+        public Transform Fx;
     }
 
     public static class WorldBuilder
@@ -28,6 +32,10 @@ namespace GnomeGuard
             BuildSnow(root, world.ArenaRadius);
             BuildYardLights(root, world.Tree);
             world.Player = BuildPlayer(root, world);
+            world.Enemies = ActorFolder.Create(root, "Enemies");
+            world.Projectiles = ActorFolder.Create(root, "Projectiles");
+            world.Pickups = ActorFolder.Create(root, "Pickups");
+            world.Fx = ActorFolder.Create(root, "Fx");
 
             return world;
         }
@@ -143,7 +151,24 @@ namespace GnomeGuard
             point.shadows = LightShadows.Soft;
 
             fx = TreeFx.Add(holder.transform);
+            WorldLabel(holder.transform, "PROTECT THIS TREE", new Vector3(0f, 6.4f, 0f), 0.08f, new Color(1f, 0.85f, 0.35f));
             return holder.transform;
+        }
+
+        static void WorldLabel(Transform parent, string text, Vector3 localPos, float size, Color color)
+        {
+            var go = new GameObject("WorldLabel");
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = localPos;
+            var tm = go.AddComponent<TextMesh>();
+            tm.text = text;
+            tm.fontSize = 48;
+            tm.characterSize = size;
+            tm.anchor = TextAnchor.MiddleCenter;
+            tm.alignment = TextAlignment.Center;
+            tm.color = color;
+            tm.fontStyle = FontStyle.Bold;
+            go.AddComponent<Billboard>();
         }
 
         static void BuildSky(Transform root)

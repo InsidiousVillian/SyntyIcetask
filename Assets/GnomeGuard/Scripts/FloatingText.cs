@@ -13,8 +13,8 @@ namespace GnomeGuard
         {
             var go = new GameObject("Popup");
             go.transform.position = position + Vector3.up * 1.2f;
-            if (GnomeGuardGame.Instance != null)
-                go.transform.SetParent(GnomeGuardGame.Instance.transform, true);
+            if (GnomeGuardGame.Instance != null && GnomeGuardGame.Instance.FxRoot != null)
+                go.transform.SetParent(GnomeGuardGame.Instance.FxRoot, true);
 
             var mesh = go.AddComponent<TextMesh>();
             mesh.text = text;
