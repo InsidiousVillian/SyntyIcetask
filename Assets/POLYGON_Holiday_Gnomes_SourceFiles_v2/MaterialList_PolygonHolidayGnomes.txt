@@ -1,0 +1,68 @@
+-------------------
+Folder Name: Prefabs
+-------------------
+Prefab Name: SM_Env_Ground_Snow_01
+    Mesh Name: SM_Env_Ground_Snow_01
+        Slot: PolygonHolidayGnomes_01
+            Albedo: PolygonHolidayGnomes_01_A.png (_Albedo_Map)
+            Emission: PolygonHolidayGnomes_01_A_Emissive.png (_Emission_Map)
+
+Prefab Name: SM_Env_Skybox_01
+    Mesh Name: SM_Env_Skybox_01
+        Slot: Background_01
+            No textures assigned
+
+Prefab Name: SM_Prop_Christmas_Tree_01
+    Mesh Name: SM_Prop_Christmas_Tree_01
+        Slot: PolygonHolidayGnomes_01
+            Albedo: PolygonHolidayGnomes_01_A.png (_Albedo_Map)
+            Emission: PolygonHolidayGnomes_01_A_Emissive.png (_Emission_Map)
+
+Prefab Name: SM_Prop_Gnome_Basalt_01
+    Mesh Name: SM_Prop_Gnome_Basalt_01
+        Slot: PolygonHolidayGnomes_01
+            Albedo: PolygonHolidayGnomes_01_A.png (_Albedo_Map)
+            Emission: PolygonHolidayGnomes_01_A_Emissive.png (_Emission_Map)
+
+Prefab Name: SM_Prop_Gnome_Beach_01
+    Mesh Name: SM_Prop_Gnome_Beach_01
+        Slot: PolygonHolidayGnomes_01
+            Albedo: PolygonHolidayGnomes_01_A.png (_Albedo_Map)
+            Emission: PolygonHolidayGnomes_01_A_Emissive.png (_Emission_Map)
+
+Prefab Name: SM_Prop_Gnome_Dwarf_01
+    Mesh Name: SM_Prop_Gnome_Dwarf_01
+        Slot: PolygonHolidayGnomes_07
+            Albedo: PolygonHolidayGnomes_07_A.png (_Albedo_Map)
+            Emission: PolygonHolidayGnomes_01_A_Emissive.png (_Emission_Map)
+
+Prefab Name: SM_Prop_Gnome_Santa_01
+    Mesh Name: SM_Prop_Gnome_Santa_01
+        Slot: PolygonHolidayGnomes_01
+            Albedo: PolygonHolidayGnomes_01_A.png (_Albedo_Map)
+            Emission: PolygonHolidayGnomes_01_A_Emissive.png (_Emission_Map)
+
+Prefab Name: SM_Prop_Gnome_Soldier_01
+    Mesh Name: SM_Prop_Gnome_Soldier_01
+        Slot: PolygonHolidayGnomes_01
+            Albedo: PolygonHolidayGnomes_01_A.png (_Albedo_Map)
+            Emission: PolygonHolidayGnomes_01_A_Emissive.png (_Emission_Map)
+
+Prefab Name: SM_Prop_Gnome_Theorist_01
+    Mesh Name: SM_Prop_Gnome_Theorist_01
+        Slot: PolygonHolidayGnomes_01
+            Albedo: PolygonHolidayGnomes_01_A.png (_Albedo_Map)
+            Emission: PolygonHolidayGnomes_01_A_Emissive.png (_Emission_Map)
+
+Prefab Name: SM_Prop_Gnome_Wizard_01
+    Mesh Name: SM_Prop_Gnome_Wizard_01
+        Slot: PolygonHolidayGnomes_02
+            Albedo: PolygonHolidayGnomes_02_A.png (_Albedo_Map)
+            Emission: PolygonHolidayGnomes_01_A_Emissive.png (_Emission_Map)
+
+Prefab Name: SM_Prop_Gnome_Zombie_01
+    Mesh Name: SM_Prop_Gnome_Zombie_01
+        Slot: PolygonHolidayGnomes_01
+            Albedo: PolygonHolidayGnomes_01_A.png (_Albedo_Map)
+            Emission: PolygonHolidayGnomes_01_A_Emissive.png (_Emission_Map)
+
